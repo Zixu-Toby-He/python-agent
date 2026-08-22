@@ -235,7 +235,7 @@ class DeepSeekAgent:
                 _输出进度(f"准备执行：{显示名称}；参数：{_参数摘要(预览参数)}")
                 try:
                     参数 = json.loads(调用["function"].get("arguments", "{}"))
-                    _输出进度(f"等待确认：{显示名称}（请在置顶弹窗中选择“是”或“否”）...")
+                    _输出进度(f"等待确认：{显示名称}（请在置顶弹窗中选择“同意”或“不同意”，然后提交）...")
                     结果 = 执行工具(名称, 参数)
                     内容 = json.dumps({"成功": True, "结果": 结果}, ensure_ascii=False)
                     _输出进度(f"执行完成：{显示名称}。")
@@ -248,7 +248,7 @@ class DeepSeekAgent:
 
 def main() -> None:
     print(f"DeepSeek Agent ({DEEPSEEK_MODEL})，输入 exit 退出。")
-    agent = DeepSeekAgent()
+    agent = DeepSeekAgent(api_key="sk-324420972b404ab0bc584ecf2fa13ec4")
     while True:
         try:
             用户输入 = input("\n你：").strip()
