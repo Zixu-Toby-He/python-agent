@@ -1,4 +1,7 @@
+import ctypes
 import functools
+import json
+import os
 import pathlib
 import subprocess
 try:
@@ -10,31 +13,50 @@ except ImportError:
 
 _TkError = tk.TclError if tk is not None else RuntimeError
 
-def _获取同意():
+def _获取同意(操作名称 = "操作", 参数 = None):
+	参数摘要 = json.dumps(参数 or {}, ensure_ascii=False, indent=2, default=str)
+	if len(参数摘要) > 1200:
+		参数摘要 = 参数摘要[:1200] + "\n……（参数过长，已省略）"
+	提示文字 = "请求执行：{}\n\n参数：\n{}\n\n是否同意该操作？".format(操作名称, 参数摘要)
+	print("\n[操作确认] 正在等待弹窗确认：{}（若弹窗未在前台，请按 Alt+Tab 查看）".format(操作名称), flush=True)
 	try:
+		if os.name == "nt":
+			弹窗标志 = 0x00000004 | 0x00000020 | 0x00010000 | 0x00040000
+			选择结果 = ctypes.windll.user32.MessageBoxW(
+				None,
+				提示文字,
+				"Agent 操作确认",
+				弹窗标志,
+			)
+			return 选择结果 == 6
 		if tk is None or messagebox is None:
 			raise RuntimeError("当前 Python 未安装 tkinter")
 		根窗口 = tk.Tk()
 		根窗口.withdraw()
-		是否同意 = messagebox.askyesno("确认操作", "是否同意该操作？", parent=根窗口)
+		根窗口.attributes("-topmost", True)
+		根窗口.update()
+		是否同意 = messagebox.askyesno("Agent 操作确认", 提示文字)
 		根窗口.destroy()
 		return bool(是否同意)
-	except (_TkError, RuntimeError):
+	except (_TkError, RuntimeError, OSError, AttributeError):
+		print("\n[操作确认] 无法显示图形弹窗，已切换到命令行确认。", flush=True)
 		答案 = ""
 		while 答案 not in ("y", "n"):
-			答案 = input("是否同意该操作（y/n）：").strip().lower()
+			答案 = input(f"{提示文字}\n是否同意该操作（y/n）：").strip().lower()
 		return 答案 == "y"
 
 def _同意装饰器(操作函数):
 	@functools.wraps(操作函数)
 	def 执行函数(*args,**kwargs):
-		if(_获取同意()):
+		if(_获取同意(操作函数.__name__, {"位置参数": args, "关键字参数": kwargs})):
+			print("\n[操作确认] 已允许，开始执行：{}".format(操作函数.__name__), flush=True)
 			try:
 				return (0, 操作函数(*args,**kwargs))
 			except Exception as e:
 				return (1, e)
 		else:
-			用户提示 = input("请给出提示：")
+			print("\n[操作确认] 已拒绝：{}".format(操作函数.__name__), flush=True)
+			用户提示 = input("\n请给出拒绝原因或修改提示：")
 			return (1, ValueError("用户不同意操作，并给出提示：{}".format(用户提示)))
 	return 执行函数
 

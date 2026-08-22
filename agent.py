@@ -70,6 +70,26 @@ def 弹窗询问(问题: str, 标题: str = "需要确认") -> str:
     "run_powershell": 执行powershell命令,
 }
 
+工具显示名称 = {
+    "create_directory": "新建文件夹",
+    "write_file": "写入文件",
+    "read_file": "读取文件",
+    "read_file_lines": "按行读取文件",
+    "read_file_chars": "按字符读取文件",
+    "run_powershell": "执行 PowerShell 命令",
+}
+
+
+def _输出进度(消息: str) -> None:
+    print(f"\n[Agent] {消息}", flush=True)
+
+
+def _参数摘要(参数: dict[str, Any], 最大长度: int = 600) -> str:
+    摘要 = json.dumps(参数, ensure_ascii=False, sort_keys=True, default=str)
+    if len(摘要) > 最大长度:
+        return 摘要[:最大长度] + "..."
+    return 摘要
+
 工具定义 = [
     {
         "type": "function",
@@ -177,7 +197,7 @@ class DeepSeekAgent:
         self.timeout = timeout
         self.messages: list[dict[str, Any]] = [{
             "role": "system",
-            "content": "你是一个谨慎的文件操作助手。只能使用提供的六个工具；缺少路径、范围、命令或命令用途时先请求用户补充，不要猜测。",
+            "content": "你是一个谨慎的文件操作助手。只能使用提供的六个工具；缺少路径、范围、命令或命令用途时先请求用户补充，不要猜测。用户提供的相对路径以启动 agent.py 时的当前工作目录为基准，是有效路径，不要仅因它不是绝对路径而追问。",
         }]
 
     def _请求(self) -> dict[str, Any]:
@@ -196,21 +216,32 @@ class DeepSeekAgent:
 
     def 对话(self, 用户输入: str) -> str:
         self.messages.append({"role": "user", "content": 用户输入})
-        for _ in range(最大对话轮数):
+        for 轮数 in range(最大对话轮数):
+            _输出进度(f"正在请求 DeepSeek（第 {轮数 + 1}/{最大对话轮数} 轮）...")
             响应 = self._请求()
             消息 = 响应["choices"][0]["message"]
             工具调用 = 消息.get("tool_calls") or []
             self.messages.append(消息)
             if not 工具调用:
+                _输出进度("模型已返回答复。")
                 return 消息.get("content") or ""
             for 调用 in 工具调用:
                 名称 = 调用["function"]["name"]
                 try:
+                    预览参数 = json.loads(调用["function"].get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    预览参数 = {"arguments": 调用["function"].get("arguments", "")}
+                显示名称 = 工具显示名称.get(名称, 名称)
+                _输出进度(f"准备执行：{显示名称}；参数：{_参数摘要(预览参数)}")
+                try:
                     参数 = json.loads(调用["function"].get("arguments", "{}"))
+                    _输出进度(f"等待确认：{显示名称}（请在置顶弹窗中选择“是”或“否”）...")
                     结果 = 执行工具(名称, 参数)
                     内容 = json.dumps({"成功": True, "结果": 结果}, ensure_ascii=False)
+                    _输出进度(f"执行完成：{显示名称}。")
                 except Exception as 异常:
                     内容 = json.dumps({"成功": False, "错误": str(异常)}, ensure_ascii=False)
+                    _输出进度(f"执行失败：{显示名称}；{异常}")
                 self.messages.append({"role": "tool", "tool_call_id": 调用["id"], "name": 名称, "content": 内容})
         raise RuntimeError("对话超过最大工具调用轮数")
 
@@ -220,7 +251,7 @@ def main() -> None:
     agent = DeepSeekAgent()
     while True:
         try:
-            用户输入 = input("你：").strip()
+            用户输入 = input("\n你：").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break
@@ -229,7 +260,7 @@ def main() -> None:
         if not 用户输入:
             continue
         try:
-            print(f"Agent：{agent.对话(用户输入)}")
+            print(f"\nAgent：{agent.对话(用户输入)}")
         except Exception as 异常:
             print(f"Agent 错误：{异常}")
 
