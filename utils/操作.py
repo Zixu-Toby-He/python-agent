@@ -2,46 +2,47 @@ import functools
 import json
 import pathlib
 import subprocess
-try:
-	import tkinter as tk
-except ImportError:
-	tk = None
 
-_TkError = tk.TclError if tk is not None else RuntimeError
+try:
+	import tkinter
+except ImportError:
+	tkinter = None
+
+_TkError = tkinter.TclError if tkinter is not None else RuntimeError
 
 def _获取同意(操作名称 = "操作", 参数 = None):
 	参数摘要 = json.dumps(参数 or {}, ensure_ascii=False, indent=2, default=str)
 	if len(参数摘要) > 1200:
-		参数摘要 = 参数摘要[:1200] + "\n……（参数过长，已省略）"
+		参数摘要 = 参数摘要[:1200] + "\n...（参数过长，已省略）"
 	提示文字 = "请求执行：{}\n\n参数：\n{}".format(操作名称, 参数摘要)
 	print("\n[操作确认] 正在等待弹窗确认：{}（若弹窗未在前台，请按 Alt+Tab 查看）".format(操作名称), flush=True)
 	窗口 = None
 	try:
-		if tk is None:
+		if (tkinter is None):
 			raise RuntimeError("当前 Python 未安装 tkinter")
-		窗口 = tk.Tk()
+		窗口 = tkinter.Tk()
 		窗口.title("Agent 操作确认")
 		窗口.geometry("620x460")
 		窗口.minsize(520, 380)
 		窗口.attributes("-topmost", True)
 
-		内容框 = tk.Frame(窗口, padx=16, pady=14)
+		内容框 = tkinter.Frame(窗口, padx=16, pady=14)
 		内容框.pack(fill="both", expand=True)
-		tk.Label(内容框, text="Agent 请求执行以下操作：", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x")
-		详情框 = tk.Text(内容框, height=10, wrap="word")
+		tkinter.Label(内容框, text="Agent 请求执行以下操作：", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x")
+		详情框 = tkinter.Text(内容框, height=10, wrap="word")
 		详情框.insert("1.0", 提示文字)
 		详情框.configure(state="disabled")
 		详情框.pack(fill="both", expand=True, pady=(8, 12))
 
-		选择变量 = tk.StringVar(value="同意")
-		tk.Label(内容框, text="请选择：", anchor="w").pack(fill="x")
-		同意选项框 = tk.Frame(内容框)
+		选择变量 = tkinter.StringVar(value="同意")
+		tkinter.Label(内容框, text="请选择：", anchor="w").pack(fill="x")
+		同意选项框 = tkinter.Frame(内容框)
 		同意选项框.pack(fill="x", padx=(12, 0), pady=(4, 0))
 
-		不同意选项框 = tk.Frame(内容框)
+		不同意选项框 = tkinter.Frame(内容框)
 		不同意选项框.pack(fill="x", padx=(12, 0), pady=(2, 0))
-		引导内容框 = tk.Frame(不同意选项框)
-		引导框 = tk.Text(引导内容框, height=5, wrap="word", state="disabled")
+		引导内容框 = tkinter.Frame(不同意选项框)
+		引导框 = tkinter.Text(引导内容框, height=5, wrap="word", state="disabled")
 
 		def 切换引导状态():
 			新状态 = "normal" if 选择变量.get() == "不同意" else "disabled"
@@ -49,10 +50,10 @@ def _获取同意(操作名称 = "操作", 参数 = None):
 			if 新状态 == "normal":
 				引导框.focus_set()
 
-		tk.Radiobutton(同意选项框,   text="同意",   variable=选择变量, value="同意",   command=切换引导状态).pack(anchor="w")
-		tk.Radiobutton(不同意选项框, text="不同意", variable=选择变量, value="不同意", command=切换引导状态).pack(anchor="w")
+		tkinter.Radiobutton(同意选项框,   text="同意",   variable=选择变量, value="同意",   command=切换引导状态).pack(anchor="w")
+		tkinter.Radiobutton(不同意选项框, text="不同意", variable=选择变量, value="不同意", command=切换引导状态).pack(anchor="w")
 		引导内容框.pack(fill="x", padx=(28, 0), pady=(2, 0))
-		tk.Label(引导内容框, text="用户引导信息（可多行输入）：", anchor="w").pack(fill="x", pady=(0, 4))
+		tkinter.Label(引导内容框, text="用户引导信息（可多行输入）：", anchor="w").pack(fill="x", pady=(0, 4))
 		引导框.pack(fill="x")
 
 		结果 = {"同意": False, "引导": ""}
@@ -68,9 +69,9 @@ def _获取同意(操作名称 = "操作", 参数 = None):
 			结果["引导"] = "用户关闭了确认窗口"
 			窗口.destroy()
 
-		按钮框 = tk.Frame(内容框)
+		按钮框 = tkinter.Frame(内容框)
 		按钮框.pack(fill="x", pady=(12, 0))
-		tk.Button(按钮框, text="提交", command=提交, width=12).pack(side="right")
+		tkinter.Button(按钮框, text="提交", command=提交, width=12).pack(side="right")
 		窗口.protocol("WM_DELETE_WINDOW", 关闭)
 		窗口.bind("<Escape>", lambda _event: 关闭())
 		窗口.update_idletasks()
@@ -177,9 +178,12 @@ def 执行powershell命令(命令, 命令功能):
 		"标准错误": 结果.stderr,
 	}
 
-if __name__ == "__main__":
+def _弹窗测试():
 	测试同意, 测试引导 = _获取同意(
 		"确认弹窗自测",
 		{"说明": "这是弹窗显示测试，不会执行文件或命令操作。"},
 	)
 	print("\n弹窗自测结果：同意={}，用户引导={!r}".format(测试同意, 测试引导))
+
+if __name__ == "__main__":
+	_弹窗测试()
